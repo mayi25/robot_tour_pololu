@@ -1,0 +1,347 @@
+"""Robot tour program"""
+# command terminal --> d: --> (py -m pylint main.py)
+import time
+from pololu_3pi_2040_robot import robot  # pylint: disable=import-error
+from gyro import Gyro
+from timer import Timer
+from displayer import Displayer
+from sound_sensor import SoundSensor
+
+# Constants
+MOTOR_SPEED = 3000
+SLOW_SPEED = 1000
+TURN_SPEED = 500
+TURN_ANGLE_ADJUST = 3.0
+ANGLE_OFF_ALLOWED = 0.25
+SPEED_ADJUST = 200
+ENCODER_COUNT_TO_CM = 0.0287
+SLOW_COUNT = 20 / ENCODER_COUNT_TO_CM
+
+#initalizing variables
+button_b = robot.ButtonB()
+displayer: Displayer = Displayer() #display pannel
+gyro: Gyro = Gyro(displayer)
+timer: Timer = Timer(gyro) #keep checking gyro
+sound_sensor = SoundSensor()
+encoders = robot.Encoders()
+motors = robot.Motors()
+
+
+def turn_slow(angle):
+    """ turn robot by a given angle """
+    target_angle = expected_angle() + angle
+    current_angle = gyro.degree()
+    if angle > 0:
+        motors.set_speeds(0, TURN_SPEED * 2)
+        while current_angle < target_angle - TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+    else:
+        motors.set_speeds(TURN_SPEED * 2, 0)
+        while current_angle > target_angle + TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+
+    motors.off()
+    timer.sleep_ms(100)
+
+def turn_back(angle):
+    """ turn robot by a given angle """
+    target_angle = expected_angle() + angle
+    current_angle = gyro.degree()
+    if angle > 0:
+        motors.set_speeds(-TURN_SPEED*2, 0)
+        while current_angle < target_angle - TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+    else:
+        motors.set_speeds(0, -TURN_SPEED*2)
+        while current_angle > target_angle + TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+
+    motors.off()
+    timer.sleep_ms(100)
+
+def turn(angle):
+    """ turn robot by a given angle """
+    target_angle = expected_angle() + angle
+    current_angle = gyro.degree()
+    if angle > 0:
+        motors.set_speeds(-TURN_SPEED, TURN_SPEED)
+        while current_angle < target_angle - TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+    else:
+        motors.set_speeds(TURN_SPEED, -TURN_SPEED)
+        while current_angle > target_angle + TURN_ANGLE_ADJUST:
+            current_angle = gyro.degree()
+
+    motors.off()
+    timer.sleep_ms(100)
+
+
+def turn_left():
+    """ turn to left at 90 degree """
+    turn(90)
+
+
+def turn_right():
+    """ turn right at 90 degree """
+    turn(-90)
+
+def turn_left_bottle():
+    """ turn to left at 90 degree """
+    turn_slow(90)
+
+def turn_right_bottle():
+    """ turn right at 90 degree """
+    turn_slow(-90)
+
+def turn_left_back():
+    """ undo turn_left_slow """
+    turn_back(90)
+
+def turn_right_back():
+    """ undo turn_right_slow """
+    turn_back(-90)
+
+def forward_speed(distance, speed):
+    """ move certain distance """
+    target_angle = expected_angle()
+    target_count = distance / ENCODER_COUNT_TO_CM
+    right_adjusted = 0
+    encoders.get_counts(reset = True)
+    count = 0
+    while count < target_count:
+        if target_count - count < SLOW_COUNT:
+            motors.set_speeds(SLOW_SPEED, SLOW_SPEED + right_adjusted)
+        else:
+            motors.set_speeds(speed, speed + right_adjusted)
+        current_angle = gyro.degree()
+        if current_angle < target_angle - ANGLE_OFF_ALLOWED:
+            right_adjusted = SPEED_ADJUST
+        elif current_angle > target_angle + ANGLE_OFF_ALLOWED:
+            right_adjusted = -SPEED_ADJUST
+        else:
+            right_adjusted = 0
+
+        counts = encoders.get_counts()
+        count = (counts[0] + counts[1]) / 2
+
+    motors.off()
+    timer.sleep_ms(100)
+
+def forward(distance):
+    """ move forward at certain distance """
+    forward_speed(distance, MOTOR_SPEED)
+
+def forward_slow(distance):
+    """ move forward slowly at certain distance """
+    forward_speed(distance, SLOW_SPEED)
+
+def backward_speed(distance, speed):
+    """ move back certain distance at certain angle and certain speed """
+    target_angle = expected_angle()
+    target_count = distance / ENCODER_COUNT_TO_CM
+    right_adjusted = 0
+    encoders.get_counts(reset = True)
+    count = 0
+    while abs(count) < target_count:
+        if target_count - abs(count) < SLOW_COUNT:
+            motors.set_speeds(-SLOW_SPEED, -SLOW_SPEED + right_adjusted)
+        else:
+            motors.set_speeds(-speed, -speed + right_adjusted)
+        current_angle = gyro.degree()
+        if current_angle < target_angle - ANGLE_OFF_ALLOWED:
+            right_adjusted = SPEED_ADJUST
+        elif current_angle > target_angle + ANGLE_OFF_ALLOWED:
+            right_adjusted = -SPEED_ADJUST
+        else:
+            right_adjusted = 0
+
+        counts = encoders.get_counts()
+        count = (counts[0] + counts[1]) / 2
+
+    motors.off()
+    timer.sleep_ms(100)
+
+def backward(distance):
+    """ move back certain distance at certain angle """
+    backward_speed(distance, MOTOR_SPEED)
+
+
+def backward_slow(distance):
+    """ move back slowly at certain distance at certain angle """
+    backward_speed(distance, SLOW_SPEED)
+
+def expected_angle():
+    """
+    Rounds the current angle to the nearest 90-degree angle.
+    This is used to correct the robot's orientation.
+    """
+    angle = gyro.degree()
+    if angle < -45:
+        return int ((angle + 45) / 90 - 1) * 90
+    return int ((angle + 45) / 90) * 90
+
+def front():
+    """ move forward 50cm """
+    forward(50)
+    pause()
+
+def back():
+    """ move backward 50cm """
+    backward(50)
+    pause()
+
+def first_box():
+    """ move to the first box """
+    forward(25 + 5)  # 5cm to move the robot center to the box center, not the dowl.
+    pause()
+
+def last_step():
+    """ move to the target for the last box """
+    pause()
+    backward(5)  # 5cm to move the dowl to the box center
+
+def left():
+    """ turn left and move forward 50cm """
+    turn_left()
+    forward(50)
+    pause()
+
+def right():
+    """ turn right and move forward 50cm """
+    turn_right()
+    forward(50)
+    pause()
+
+def wall():
+    """ move to the front wall """
+    distance = sound_sensor.distance_cm()
+    if distance > 50:
+        return
+    if distance > 21:
+        forward_slow(distance - 21)    #19
+    if distance < 18:
+        backward_slow(18 - distance)   #24
+
+def aim_bottle():
+    """ aim to bottle """
+    # got 3 distance: middle left and right. select the smallest one
+    middle_distance = sound_sensor.distance_cm()
+    while 20 < middle_distance < 40:
+        # move a little bit closer
+        forward_slow(5)
+        middle_distance = sound_sensor.distance_cm()
+    if middle_distance < 40:
+        forward_slow(middle_distance - 12)
+
+    middle_distance = sound_sensor.distance_cm()
+    turn_right()
+    forward_slow(5)
+    turn_left()
+    right_distance = sound_sensor.distance_cm()
+    if right_distance > middle_distance:
+        # continue checking the left
+        turn_left()
+        forward_slow(12)
+        turn_right()
+        left_distance = sound_sensor.distance_cm()
+        if left_distance >  middle_distance:
+            # go back the middle
+            turn_right()
+            forward_slow(5)
+            turn_left()
+
+def push_bottle():
+    """ aim to bottle and push the bottle forward """
+    aim_bottle()
+    forward_slow(40)  # reserve 5 cm from the center for the turning
+
+def cross_bottle():
+    """ cross the bottle and turn face to the bottle """
+    aim_bottle()
+    while sound_sensor.distance_cm() < 30:
+        turn_right()
+        forward_slow(5)
+        turn_left()
+    forward(45)
+    turn_left()
+    forward_slow(10)
+    turn_left()
+    pause()
+
+def millis():
+    ''' return time in milliseconds '''
+    return int(time.time() * 1000)
+
+STEP_TAKEN = 0
+def pause():
+    ''' pause based on remainng time and step '''
+    global STEP_TAKEN # pylint: disable=W0603
+    STEP_TAKEN += 1
+    time_spent = millis() - start_time
+    wait_time = TOTAL_TIME - time_spent - (max(TOTAL_STEP - STEP_TAKEN, 0)) * 3000
+    timer.sleep_ms(min(wait_time, 2500))
+
+
+displayer.show("Press B to start!")
+while not button_b.check():
+    gyro.degree()
+
+if abs(gyro.degree()) > 1.0:
+    displayer.show("Gyro OFF, Reset")
+    timer.sleep_ms(500000)
+
+displayer.show("Driving...")
+
+start_time = millis()
+timer.sleep_ms(500)
+
+#### Main function
+
+TOTAL_TIME = 64 * 1000 # in ms, CHANGE THIS
+TOTAL_STEP = 23 # CHANGE THIS, only when changing box
+
+first_box() # COUNT AS STEP. DO NOT CHANGE.
+
+right()
+front()
+wall()
+left()
+right()
+turn_left()
+back()
+front()
+wall()
+left()
+wall()
+turn_right()
+push_bottle()
+front()
+turn_right_bottle()
+front()
+back()
+turn_left()
+back()
+turn_right()
+wall()
+turn_left()
+turn_left()
+front()
+front()
+turn_right()
+push_bottle()
+turn_right_bottle()
+front()
+back()
+turn_left()
+turn_left()
+turn_left()
+front()
+wall()
+right()
+turn_left()
+push_bottle()
+back()
+back()
+
+last_step() #don't count in TOTA_STEP
+ 
