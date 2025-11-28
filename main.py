@@ -1,5 +1,6 @@
 """Robot tour program"""
-# command terminal --> d: --> (py -m pylint main.py)
+# pylint :\main.py
+# py check.py -v
 import time
 from pololu_3pi_2040_robot import robot  # pylint: disable=import-error
 from gyro import Gyro
@@ -19,6 +20,7 @@ SLOW_COUNT = 20 / ENCODER_COUNT_TO_CM
 
 #initalizing variables
 button_b = robot.ButtonB()
+button_c = robot.ButtonC()
 displayer: Displayer = Displayer() #display pannel
 gyro: Gyro = Gyro(displayer)
 timer: Timer = Timer(gyro) #keep checking gyro
@@ -284,16 +286,17 @@ def pause():
 
 displayer.show("Press B to start!")
 while not button_b.check():
-    gyro.degree()
-
-if abs(gyro.degree()) > 1.0:
-    displayer.show("Gyro OFF, Reset")
-    timer.sleep_ms(500000)
+    if button_c.check():
+        while True:
+            displayer.show(str(sound_sensor.distance_cm()))
+    if abs(gyro.degree()) > 1.0:
+        displayer.show("Gyro OFF, reset")
+        timer.sleep_ms(500000)
 
 displayer.show("Driving...")
 
-start_time = millis()
 timer.sleep_ms(500)
+start_time = millis()
 
 #### Main function
 
