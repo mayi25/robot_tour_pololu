@@ -1,6 +1,6 @@
 """Robot tour program"""
-# pylint :\main.py
-# py check.py -v
+# !pylint D:\main.py
+# !py check.py -v
 import time
 from pololu_3pi_2040_robot import robot  # pylint: disable=import-error
 from gyro import Gyro
@@ -17,7 +17,9 @@ ANGLE_OFF_ALLOWED = 0.25
 SPEED_ADJUST = 200
 ENCODER_COUNT_TO_CM = 0.0287
 SLOW_COUNT = 20 / ENCODER_COUNT_TO_CM
-
+HOLD_BOTTLE = False
+WALL_SEEN = 1
+FRONT_MOVED = False
 #initalizing variables
 button_b = robot.ButtonB()
 button_c = robot.ButtonC()
@@ -45,22 +47,6 @@ def turn_slow(angle):
     motors.off()
     timer.sleep_ms(100)
 
-def turn_back(angle):
-    """ turn robot by a given angle """
-    target_angle = expected_angle() + angle
-    current_angle = gyro.degree()
-    if angle > 0:
-        motors.set_speeds(-TURN_SPEED*2, 0)
-        while current_angle < target_angle - TURN_ANGLE_ADJUST:
-            current_angle = gyro.degree()
-    else:
-        motors.set_speeds(0, -TURN_SPEED*2)
-        while current_angle > target_angle + TURN_ANGLE_ADJUST:
-            current_angle = gyro.degree()
-
-    motors.off()
-    timer.sleep_ms(100)
-
 def turn(angle):
     """ turn robot by a given angle """
     target_angle = expected_angle() + angle
@@ -80,30 +66,24 @@ def turn(angle):
 
 def turn_left():
     """ turn to left at 90 degree """
-    turn(90)
+    global FRONT_MOVED # pylint: disable=W0603
+    if HOLD_BOTTLE:
+        turn_slow(90)
+        FRONT_MOVED = False
+    else:
+        turn(90)
 
 
 def turn_right():
     """ turn right at 90 degree """
-    turn(-90)
+    global FRONT_MOVED # pylint: disable=W0603
+    if HOLD_BOTTLE:
+        turn_slow(-90)
+        FRONT_MOVED = False
+    else:
+        turn(-90)
 
-def turn_left_bottle():
-    """ turn to left at 90 degree """
-    turn_slow(90)
-
-def turn_right_bottle():
-    """ turn right at 90 degree """
-    turn_slow(-90)
-
-def turn_left_back():
-    """ undo turn_left_slow """
-    turn_back(90)
-
-def turn_right_back():
-    """ undo turn_right_slow """
-    turn_back(-90)
-
-def forward_speed(distance, speed):
+def forward(distance):
     """ move certain distance """
     target_angle = expected_angle()
     target_count = distance / ENCODER_COUNT_TO_CM
@@ -111,44 +91,10 @@ def forward_speed(distance, speed):
     encoders.get_counts(reset = True)
     count = 0
     while count < target_count:
-        if target_count - count < SLOW_COUNT:
+        if target_count - count < SLOW_COUNT or HOLD_BOTTLE:
             motors.set_speeds(SLOW_SPEED, SLOW_SPEED + right_adjusted)
         else:
-            motors.set_speeds(speed, speed + right_adjusted)
-        current_angle = gyro.degree()
-        if current_angle < target_angle - ANGLE_OFF_ALLOWED:
-            right_adjusted = SPEED_ADJUST
-        elif current_angle > target_angle + ANGLE_OFF_ALLOWED:
-            right_adjusted = -SPEED_ADJUST
-        else:
-            right_adjusted = 0
-
-        counts = encoders.get_counts()
-        count = (counts[0] + counts[1]) / 2
-
-    motors.off()
-    timer.sleep_ms(100)
-
-def forward(distance):
-    """ move forward at certain distance """
-    forward_speed(distance, MOTOR_SPEED)
-
-def forward_slow(distance):
-    """ move forward slowly at certain distance """
-    forward_speed(distance, SLOW_SPEED)
-
-def backward_speed(distance, speed):
-    """ move back certain distance at certain angle and certain speed """
-    target_angle = expected_angle()
-    target_count = distance / ENCODER_COUNT_TO_CM
-    right_adjusted = 0
-    encoders.get_counts(reset = True)
-    count = 0
-    while abs(count) < target_count:
-        if target_count - abs(count) < SLOW_COUNT:
-            motors.set_speeds(-SLOW_SPEED, -SLOW_SPEED + right_adjusted)
-        else:
-            motors.set_speeds(-speed, -speed + right_adjusted)
+            motors.set_speeds(MOTOR_SPEED, MOTOR_SPEED + right_adjusted)
         current_angle = gyro.degree()
         if current_angle < target_angle - ANGLE_OFF_ALLOWED:
             right_adjusted = SPEED_ADJUST
@@ -164,13 +110,30 @@ def backward_speed(distance, speed):
     timer.sleep_ms(100)
 
 def backward(distance):
-    """ move back certain distance at certain angle """
-    backward_speed(distance, MOTOR_SPEED)
+    """ move back certain distance """
+    target_angle = expected_angle()
+    target_count = distance / ENCODER_COUNT_TO_CM
+    right_adjusted = 0
+    encoders.get_counts(reset = True)
+    count = 0
+    while abs(count) < target_count:
+        if target_count - abs(count) < SLOW_COUNT:
+            motors.set_speeds(-SLOW_SPEED, -SLOW_SPEED + right_adjusted)
+        else:
+            motors.set_speeds(-MOTOR_SPEED, -MOTOR_SPEED + right_adjusted)
+        current_angle = gyro.degree()
+        if current_angle < target_angle - ANGLE_OFF_ALLOWED:
+            right_adjusted = SPEED_ADJUST
+        elif current_angle > target_angle + ANGLE_OFF_ALLOWED:
+            right_adjusted = -SPEED_ADJUST
+        else:
+            right_adjusted = 0
 
+        counts = encoders.get_counts()
+        count = (counts[0] + counts[1]) / 2
 
-def backward_slow(distance):
-    """ move back slowly at certain distance at certain angle """
-    backward_speed(distance, SLOW_SPEED)
+    motors.off()
+    timer.sleep_ms(100)
 
 def expected_angle():
     """
@@ -189,7 +152,15 @@ def front():
 
 def back():
     """ move backward 50cm """
-    backward(50)
+    global HOLD_BOTTLE # pylint: disable=W0603
+    if HOLD_BOTTLE:
+        if FRONT_MOVED:
+            backward(45)
+        else:
+            backward(55) # There is a turn, no move.
+    else:
+        backward(50)
+    HOLD_BOTTLE = False
     pause()
 
 def first_box():
@@ -204,69 +175,97 @@ def last_step():
 
 def left():
     """ turn left and move forward 50cm """
+    global FRONT_MOVED # pylint: disable=W0603
     turn_left()
-    forward(50)
+    if HOLD_BOTTLE:
+        forward(40)
+        FRONT_MOVED = True
+    else:
+        forward(50)
     pause()
 
 def right():
     """ turn right and move forward 50cm """
+    global FRONT_MOVED # pylint: disable=W0603
     turn_right()
-    forward(50)
+    if HOLD_BOTTLE:
+        forward(40)
+        FRONT_MOVED = True
+    else:
+        forward(50)
     pause()
+
+def front_wall():
+    """ move to the front wall """
+    distance = sound_sensor.distance_cm()
+    if distance < 60:
+        forward(distance - 20)
+    else:
+        forward(50)
+    pause()
+    wall()
 
 def wall():
     """ move to the front wall """
+    global WALL_SEEN # pylint: disable=W0603
     distance = sound_sensor.distance_cm()
     if distance > 50:
         return
     if distance > 21:
-        forward_slow(distance - 21)    #19
+        forward(distance - 21)    #19
     if distance < 18:
-        backward_slow(18 - distance)   #24
+        backward(18 - distance)   #24
+    WALL_SEEN = STEP_TAKEN
 
 def aim_bottle():
     """ aim to bottle """
     # got 3 distance: middle left and right. select the smallest one
     middle_distance = sound_sensor.distance_cm()
-    while 20 < middle_distance < 40:
-        # move a little bit closer
-        forward_slow(5)
-        middle_distance = sound_sensor.distance_cm()
     if middle_distance < 40:
-        forward_slow(middle_distance - 12)
+        # move a little bit closer
+        forward(middle_distance - 12)
+
+    if WALL_SEEN == STEP_TAKEN: # wall is more reliable
+        return
 
     middle_distance = sound_sensor.distance_cm()
     turn_right()
-    forward_slow(5)
+    forward(5)
     turn_left()
     right_distance = sound_sensor.distance_cm()
     if right_distance > middle_distance:
         # continue checking the left
         turn_left()
-        forward_slow(12)
+        forward(12)
         turn_right()
         left_distance = sound_sensor.distance_cm()
         if left_distance >  middle_distance:
             # go back the middle
             turn_right()
-            forward_slow(5)
+            forward(5)
             turn_left()
 
 def push_bottle():
     """ aim to bottle and push the bottle forward """
+    global HOLD_BOTTLE # pylint: disable=W0603
+    global FRONT_MOVED # pylint: disable=W0603
     aim_bottle()
-    forward_slow(40)  # reserve 5 cm from the center for the turning
+    forward(43)
+    HOLD_BOTTLE = True
+    FRONT_MOVED = True
+    pause()
 
 def cross_bottle():
     """ cross the bottle and turn face to the bottle """
+
     aim_bottle()
-    while sound_sensor.distance_cm() < 30:
-        turn_right()
-        forward_slow(5)
-        turn_left()
-    forward(45)
+    # move right till no bottle
+    turn_right()
+    forward(12)
     turn_left()
-    forward_slow(10)
+    forward(48)
+    turn_left()
+    forward(12)
     turn_left()
     pause()
 
@@ -283,8 +282,8 @@ def pause():
     wait_time = TOTAL_TIME - time_spent - (max(TOTAL_STEP - STEP_TAKEN, 0)) * 3000
     timer.sleep_ms(min(wait_time, 2500))
 
-
 displayer.show("Press B to start!")
+
 while not button_b.check():
     if button_c.check():
         while True:
@@ -299,52 +298,85 @@ timer.sleep_ms(500)
 start_time = millis()
 
 #### Main function
-
 TOTAL_TIME = 64 * 1000 # in ms, CHANGE THIS
 TOTAL_STEP = 23 # CHANGE THIS, only when changing box
 
 first_box() # COUNT AS STEP. DO NOT CHANGE.
 
-right()
 front()
+turn_right()
+front_wall()
+turn_right()
+push_bottle()
+left()
+left()
+back()
+left()
+front_wall()
+right()
+turn_left()
+front_wall()
+turn_left()
+push_bottle()
+right()
+turn_left()
+back()
+turn_left()
 wall()
+turn_left()
+front_wall()
+turn_right()
+push_bottle()
 left()
 right()
-turn_left()
-back()
 front()
-wall()
-left()
-wall()
-turn_right()
-push_bottle()
-front()
-turn_right_bottle()
 front()
 back()
-turn_left()
 back()
 turn_right()
 wall()
-turn_left()
-turn_left()
-front()
-front()
 turn_right()
-push_bottle()
-turn_right_bottle()
-front()
-back()
-turn_left()
-turn_left()
-turn_left()
-front()
-wall()
-right()
-turn_left()
-push_bottle()
-back()
-back()
+front_wall()
+# right()
+# front()
+# wall()
+# left()
+# right()
+# turn_left()
+# back()
+# front()
+# wall()
+# left()
+# wall()
+# turn_right()
+# push_bottle()
+# front()
+# turn_right()
+# front()
+# back()
+# turn_left()
+# back()
+# turn_right()
+# wall()
+# turn_left()
+# turn_left()
+# front()
+# front()
+# turn_right()
+# push_bottle()
+# turn_right()
+# front()
+# back()
+# turn_left()
+# turn_left()
+# turn_left()
+# front()
+# wall()
+# right()
+# turn_left()
+# push_bottle()
+# back()
+# back()
 
 last_step() #don't count in TOTA_STEP
  
