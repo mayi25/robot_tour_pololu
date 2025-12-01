@@ -1,6 +1,6 @@
 """Robot tour program"""
 # !pylint D:\main.py
-# !py check.py -v
+# !py D:\check.py -v
 import time
 from pololu_3pi_2040_robot import robot  # pylint: disable=import-error
 from gyro import Gyro
@@ -17,9 +17,9 @@ ANGLE_OFF_ALLOWED = 0.25
 SPEED_ADJUST = 200
 ENCODER_COUNT_TO_CM = 0.0287
 SLOW_COUNT = 20 / ENCODER_COUNT_TO_CM
-HOLD_BOTTLE = False
-WALL_SEEN = 1
-FRONT_MOVED = False
+HOLD_BOTTLE = False # pylint: disable=invalid-name
+WALL_SEEN = 1 # pylint: disable=invalid-name
+FRONT_MOVED = False # pylint: disable=invalid-name
 #initalizing variables
 button_b = robot.ButtonB()
 button_c = robot.ButtonC()
@@ -211,10 +211,10 @@ def wall():
     distance = sound_sensor.distance_cm()
     if distance > 50:
         return
-    if distance > 21:
-        forward(distance - 21)    #19
-    if distance < 18:
-        backward(18 - distance)   #24
+    if distance > 18: # 2cm wall + 5.5cm robot
+        forward(distance - 16)
+    if distance < 16:
+        backward(16 - distance)
     WALL_SEEN = STEP_TAKEN
 
 def aim_bottle():
@@ -255,8 +255,8 @@ def push_bottle():
     FRONT_MOVED = True
     pause()
 
-def cross_bottle():
-    """ cross the bottle and turn face to the bottle """
+def cross_bottle_right():
+    """ cross the bottle from the right and turn face to the bottle """
 
     aim_bottle()
     # move right till no bottle
@@ -269,11 +269,25 @@ def cross_bottle():
     turn_left()
     pause()
 
+def cross_bottle_left():
+    """ cross the bottle from the right and turn face to the bottle """
+
+    aim_bottle()
+    # move right till no bottle
+    turn_left()
+    forward(12)
+    turn_right()
+    forward(48)
+    turn_right()
+    forward(12)
+    turn_right()
+    pause()
+
 def millis():
     ''' return time in milliseconds '''
     return int(time.time() * 1000)
 
-STEP_TAKEN = 0
+STEP_TAKEN = 0 # pylint: disable=invalid-name
 def pause():
     ''' pause based on remainng time and step '''
     global STEP_TAKEN # pylint: disable=W0603
@@ -283,6 +297,7 @@ def pause():
     timer.sleep_ms(min(wait_time, 2500))
 
 displayer.show("Press B to start!")
+
 
 while not button_b.check():
     if button_c.check():
@@ -298,85 +313,9 @@ timer.sleep_ms(500)
 start_time = millis()
 
 #### Main function
-TOTAL_TIME = 64 * 1000 # in ms, CHANGE THIS
-TOTAL_STEP = 23 # CHANGE THIS, only when changing box
+TOTAL_TIME = 80 * 1000 # in ms, CHANGE THIS
+TOTAL_STEP = 25 # CHANGE THIS, count steps when changing box
 
 first_box() # COUNT AS STEP. DO NOT CHANGE.
 
-front()
-turn_right()
-front_wall()
-turn_right()
-push_bottle()
-left()
-left()
-back()
-left()
-front_wall()
-right()
-turn_left()
-front_wall()
-turn_left()
-push_bottle()
-right()
-turn_left()
-back()
-turn_left()
-wall()
-turn_left()
-front_wall()
-turn_right()
-push_bottle()
-left()
-right()
-front()
-front()
-back()
-back()
-turn_right()
-wall()
-turn_right()
-front_wall()
-# right()
-# front()
-# wall()
-# left()
-# right()
-# turn_left()
-# back()
-# front()
-# wall()
-# left()
-# wall()
-# turn_right()
-# push_bottle()
-# front()
-# turn_right()
-# front()
-# back()
-# turn_left()
-# back()
-# turn_right()
-# wall()
-# turn_left()
-# turn_left()
-# front()
-# front()
-# turn_right()
-# push_bottle()
-# turn_right()
-# front()
-# back()
-# turn_left()
-# turn_left()
-# turn_left()
-# front()
-# wall()
-# right()
-# turn_left()
-# push_bottle()
-# back()
-# back()
-
-last_step() #don't count in TOTA_STEP
- 
+last_step() # don't count in TOTA_STEP. DO NOT CHANGE.
