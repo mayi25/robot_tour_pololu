@@ -11,12 +11,12 @@ from sound_sensor import SoundSensor
 # Constants
 MOTOR_SPEED = 3000
 SLOW_SPEED = 1000
-TURN_SPEED = 500
+TURN_SPEED = 750
 TURN_ANGLE_ADJUST = 3.0
 ANGLE_OFF_ALLOWED = 0.25
 SPEED_ADJUST = 200
 ENCODER_COUNT_TO_CM = 0.0287
-SLOW_COUNT = 20 / ENCODER_COUNT_TO_CM
+SLOW_COUNT = 10 / ENCODER_COUNT_TO_CM
 HOLD_BOTTLE = False # pylint: disable=invalid-name
 WALL_SEEN = 1 # pylint: disable=invalid-name
 FRONT_MOVED = False # pylint: disable=invalid-name
@@ -91,7 +91,8 @@ def forward(distance):
     encoders.get_counts(reset = True)
     count = 0
     while count < target_count:
-        if target_count - count < SLOW_COUNT or HOLD_BOTTLE:
+        if target_count - count < SLOW_COUNT or (
+            HOLD_BOTTLE and target_count - count < 2 * SLOW_COUNT):
             motors.set_speeds(SLOW_SPEED, SLOW_SPEED + right_adjusted)
         else:
             motors.set_speeds(MOTOR_SPEED, MOTOR_SPEED + right_adjusted)
@@ -250,9 +251,9 @@ def push_bottle():
     global HOLD_BOTTLE # pylint: disable=W0603
     global FRONT_MOVED # pylint: disable=W0603
     aim_bottle()
-    forward(43)
     HOLD_BOTTLE = True
     FRONT_MOVED = True
+    forward(43)
     pause()
 
 def cross_bottle_right():
@@ -313,9 +314,58 @@ timer.sleep_ms(500)
 start_time = millis()
 
 #### Main function
-TOTAL_TIME = 80 * 1000 # in ms, CHANGE THIS
-TOTAL_STEP = 25 # CHANGE THIS, count steps when changing box
+TOTAL_TIME = 55 * 1000 # in ms, CHANGE THIS
+TOTAL_STEP = 24 # CHANGE THIS, count steps when changing box
 
 first_box() # COUNT AS STEP. DO NOT CHANGE.
 
+left()
+turn_right()
+front_wall()
+turn_right()
+push_bottle()
+left()
+back()
+right()
+turn_right()
+cross_bottle_left()
+push_bottle()
+front()
+front()
+back()
+back()
+left()
+front_wall()
+turn_right()
+wall()
+turn_right()
+right()
+turn_right()
+push_bottle()
+right()
+left()
+left()
+back()
+back()
+back()
+front()
+turn_left()
+front_wall()
+turn_right()
+wall()
+
 last_step() # don't count in TOTA_STEP. DO NOT CHANGE.
+#turn_left() // just turns left 90
+#turn_right() //just turns right 90
+#front() // move forward 1 box
+#back() // move back 1 box
+#left() // turn left + move 1 box
+#right() // turn right + move 1 box
+#front_wall() //move 1 box till wall
+#wall() // adjust to wall
+#push_bottle() # ULTRASOUND in front of bottle and PUSHES it 1 box
+#cross_bottle_right() # you should start with ULTRASOUND facing front bottle
+                      #, goes around to its right (does not push)
+#cross_bottle_left() # you should start with ULTRASOUND facing front bottle,
+                     # goes around to its left (does not push)
+                    
